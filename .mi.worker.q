@@ -13,7 +13,7 @@
 
 .mi.runTask:{[taskDic]
 	.eg.RunTask:taskDic;
-    neg[.z.w](`.mi.slaveResponse;(`taskID`mb!(taskDic`taskID;7h$%[.Q.w[]`heap;1e6])),
+    neg[.z.w](`.mi.workerResponse;(`taskID`mb!(taskDic`taskID;7h$%[.Q.w[]`heap;1e6])),
       `success`result!@[{(1b;x[`task]@x`args)};taskDic;{(0b;x)}]);
     neg[.z.w](::);
    };

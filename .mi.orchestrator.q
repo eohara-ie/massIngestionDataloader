@@ -9,43 +9,43 @@
 .mi.getMergeDB:{[t;typ;dt]` sv .mi.ihdb,typ,(`$string dt),t};
 .mi.indexMap:4!enlist`batchID`typ`dt`t`index!(`;`;0Nd;`;::);	
 
-.mi.sendToFreeSlave:{[taskIDs]
-    if[count slaves:0!select from .mi.slaves where null task,not null handle;	
+.mi.sendToFreeWorker:{[taskIDs]
+    if[count workers:0!select from .mi.workers where null task,not null handle;	
 	mem:7h$.mi.fileSizeLimit * .95 1 1.05 sum(and)scan .mi.freeMemoryFree>.mi.memoryBuffer*1 2;
-    slaveInfo:update slave:` from `taskSize xdesc select taskID,taskSize,task from ([]taskID:taskIDs)#.mi.tasks;
-    //assign largest task to dedicated slave
-    if[all(count readWrites:exec i from slaveInfo where task=`.mi.readAndSave;not null .mi.largeFileSlave);if[null .mi.slaves[.mi.largeFileSlave]`task;slaveInfo[first readWrites;`slave]:.mi.largeFileSlave;            mem:0|mem-0^slaveInfo[0]`taskSize]];		
-    /slaveInfo:delete task from slaveInfo;
+    workerInfo:update worker:` from `taskSize xdesc select taskID,taskSize,task from ([]taskID:taskIDs)#.mi.tasks;
+    //assign largest task to dedicated worker
+    if[all(count readWrites:exec i from workerInfo where task=`.mi.readAndSave;not null .mi.largeFileWorker);if[null .mi.workers[.mi.largeFileWorker]`task;workerInfo[first readWrites;`worker]:.mi.largeFileWorker;            mem:0|mem-0^workerInfo[0]`taskSize]];		
+    /workerInfo:delete task from workerInfo;
 	0N!"checking memory";
     mem:0|mem-exec sum 0^taskSize from .mi.tasks where status=`processing;
-    if[.mi.largeFileSlave in slaveInfo`slave;slaves:delete from slaves where slave=.mi.largeFileSlave];
+    if[.mi.largeFileWorker in workerInfo`worker;workers:delete from workers where worker=.mi.largeFileWorker];
     //check number of tasks that can be sent based on memory and then send tasks
-    toRest:slaveInfo except toLargeSlave:select from slaveInfo where not null slave;
-    toRest:a neg[n]sublist where mem>(n:count[.mi.slaves]-count toLargeSlave)msum(a:reverse toRest)`taskSize;
-    toRest:count[slaves]sublist toRest;
-	0N!".mi.sendToFreeSlave Sending tasks to slaves";
-    toRest:update slave:count[toRest]# slaves`slave from toRest;
-	.mi.send each .eg.sendToFree:(toLargeSlave,toRest)lj delete taskID,taskSize from .mi.slaves];
+    toRest:workerInfo except toLargeWorker:select from workerInfo where not null worker;
+    toRest:a neg[n]sublist where mem>(n:count[.mi.workers]-count toLargeWorker)msum(a:reverse toRest)`taskSize;
+    toRest:count[workers]sublist toRest;
+	0N!".mi.sendToFreeWorker Sending tasks to workers";
+    toRest:update worker:count[toRest]# workers`worker from toRest;
+	.mi.send each .eg.sendToFree:(toLargeWorker,toRest)lj delete taskID,taskSize from .mi.workers];
    };
 
 
 .mi.send:{[x]  
     taskInfo:(`taskID xkey .mi.tasks) x`taskID;
    	neg[h:x`handle](`.mi.runTask;(`task`args#taskInfo),(1#`taskID)#x);
-    .mi.slaves:update task:x`task,taskID:x`taskID from .mi.slaves where slave=x`slave;
+    .mi.workers:update task:x`task,taskID:x`taskID from .mi.workers where worker=x`worker;
     .mi.tasks:update taskIDstartTime:.z.p,status:`processing from .mi.tasks where taskID=x`taskID;
    };
    
-.eg.slaveResponse:()!();   
+.eg.workerResponse:()!();   
    
-.mi.slaveResponse:{[x]
-	.eg.slaveResponse,:(enlist x`taskID)!enlist x;
-	0N!"Running .mi.slaveResponse";
+.mi.workerResponse:{[x]
+	.eg.workerResponse,:(enlist x`taskID)!enlist x;
+	0N!"Running .mi.workerResponse";
    res:x`result;
    status:stat:`failed`complete x`success;  
    if[stat=`failed;0N!"Task Failed";:()];
    if[null(taskInfo:@[.mi.tasks x`taskID;`taskID;:;x`taskID])`batchID;:()];
-   .mi.slaves:update time:.z.p,task:`,lasttask:task,mb:x`mb,processed+1,taskSize:0N from .mi.slaves where slave in (exec slave from .mi.slaves where taskID=x`taskID);
+   .mi.workers:update time:.z.p,task:`,lasttask:task,mb:x`mb,processed+1,taskSize:0N from .mi.workers where worker in (exec worker from .mi.workers where taskID=x`taskID);
  	.mi.tasks:update status:stat,endTime:.z.p,result:enlist x[`result],success:first x[`success] from .mi.tasks where taskID=first  x[`taskID];
    
    if[x[`success]&`.mi.readAndSave=task:taskInfo`task;
@@ -57,7 +57,7 @@
 	   if[count  queued:0!select from .mi.tasks where not status=`complete,task in `.mi.index`.mi.merge`.mi.move, i=min i;     
 	   0N!"Sending task";
 	   .eg.queued:queued;
-		.mi.sendToFreeSlave queued`taskID];
+		.mi.sendToFreeWorker queued`taskID];
 	if[not count queued;0N!"Nothing to run, all tasks complete";:()];
    };
    
